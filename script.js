@@ -2202,34 +2202,56 @@ const quizData = [
   }
 ];
 
+// --- BẮT ĐẦU PHẦN CODE MỚI ---
 const alphabet = ['A', 'B', 'C', 'D'];
+let currentQuizData = []; // Mảng chứa dữ liệu sau khi đã xáo trộn
+
+// Hàm xáo trộn mảng (Thuật toán Fisher-Yates) giúp random ngẫu nhiên và công bằng
+function shuffleArray(array) {
+    let currentIndex = array.length, randomIndex;
+    while (currentIndex !== 0) {
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+    }
+    return array;
+}
 
 function initQuiz() {
     const container = document.getElementById('quizContainer');
+    container.innerHTML = ''; // Làm sạch container trước khi render
     
-    quizData.forEach((item, index) => {
+    // 1. RANDOM CÂU HỎI: Tạo bản sao của quizData và xáo trộn
+    // (Mẹo: Nếu chỉ muốn làm 50 câu ngẫu nhiên, hãy đổi thành: shuffleArray([...quizData]).slice(0, 50);)
+    currentQuizData = shuffleArray([...quizData]);
+    
+    currentQuizData.forEach((item, index) => {
         const questionCard = document.createElement('div');
         questionCard.className = 'bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6';
         
         let optionsHtml = '';
-        // SỬA LỖI: Duyệt qua mảng alphabet để lấy dữ liệu từ Object options
-        alphabet.forEach((key) => {
-            const optText = item.options[key]; // Lấy text của đáp án A, B, C, D
-            if (optText) { // Chỉ render nếu đáp án tồn tại
-                optionsHtml += `
-                    <div class="mb-3">
-                        <label id="label-${index}-${key}" class="option-label flex items-start p-4 border border-gray-200 rounded-lg cursor-pointer">
-                            <input type="radio" name="question-${index}" value="${key}" class="mt-1 mr-3 w-4 h-4 text-blue-600 focus:ring-blue-500" onclick="checkAnswer(${index}, '${key}')">
-                            <span class="font-bold mr-2">${key}.</span> 
-                            <span class="text-gray-700 leading-relaxed">${optText}</span>
-                        </label>
-                    </div>
-                `;
-            }
+        
+        // 2. RANDOM ĐÁP ÁN: Lấy các key hiện có (A, B, C, D) và xáo trộn vị trí của chúng
+        const availableKeys = alphabet.filter(key => item.options[key]);
+        const shuffledKeys = shuffleArray([...availableKeys]);
+        
+        shuffledKeys.forEach((originalKey, displayIndex) => {
+            // Chữ cái hiển thị luôn là A, B, C, D theo thứ tự
+            const displayLetter = alphabet[displayIndex]; 
+            const optText = item.options[originalKey];
+            
+            optionsHtml += `
+                <div class="mb-3">
+                    <label id="label-${index}-${originalKey}" class="option-label flex items-start p-4 border border-gray-200 rounded-lg cursor-pointer">
+                        <input type="radio" name="question-${index}" value="${originalKey}" class="mt-1 mr-3 w-4 h-4 text-blue-600 focus:ring-blue-500" onclick="checkAnswer(${index}, '${originalKey}')">
+                        <span class="font-bold mr-2 display-letter">${displayLetter}.</span> 
+                        <span class="text-gray-700 leading-relaxed">${optText}</span>
+                    </label>
+                </div>
+            `;
         });
 
         questionCard.innerHTML = `
-            <!-- SỬA LỖI: Đổi item.q thành item.question -->
             <h3 class="text-lg font-bold text-gray-900 mb-4">Câu ${index + 1}: ${item.question}</h3>
             <div id="options-${index}">${optionsHtml}</div>
             <div id="feedback-${index}" class="mt-3 font-semibold text-lg hidden"></div>
@@ -2239,36 +2261,43 @@ function initQuiz() {
 }
 
 function checkAnswer(qIndex, selectedKey) {
-    const correctKey = quizData[qIndex].answer; // Trả về 'A', 'B', 'C' hoặc 'D'
+    const item = currentQuizData[qIndex];
+    const correctKey = item.answer; 
     const isCorrect = (selectedKey === correctKey);
     
-    // Disable tất cả radio buttons của câu hỏi này
+    // Khóa (disable) tất cả các tùy chọn sau khi đã chọn
     const radios = document.getElementsByName(`question-${qIndex}`);
     radios.forEach(r => r.disabled = true);
     
-    // Đổi style cho đáp án
-    alphabet.forEach((key) => {
+    // Tìm và đổi màu các nhãn đáp án
+    const availableKeys = alphabet.filter(k => item.options[k]);
+    availableKeys.forEach((key) => {
         const label = document.getElementById(`label-${qIndex}-${key}`);
         if(label) {
             label.classList.add('disabled');
-            label.style.pointerEvents = 'none'; // Ngăn click đúp
+            label.style.pointerEvents = 'none'; // Ngăn bấm thêm
             
             if (key === correctKey) {
-                label.classList.add('correct'); // Đáp án đúng luôn sáng màu xanh
+                label.classList.add('correct'); // Bôi xanh đáp án đúng thực sự
             } else if (key === selectedKey && !isCorrect) {
-                label.classList.add('wrong'); // Chọn sai thì bôi đỏ
+                label.classList.add('wrong'); // Bôi đỏ nếu người dùng chọn sai
             }
         }
     });
     
-    // Hiển thị thông báo đúng/sai
+    // Cập nhật câu phản hồi
     const feedback = document.getElementById(`feedback-${qIndex}`);
     feedback.classList.remove('hidden');
-    if(isCorrect) {
+    
+    if (isCorrect) {
         feedback.innerText = '✅ Chính xác!';
         feedback.classList.add('text-green-600');
     } else {
-        feedback.innerText = '❌ Sai rồi! Đáp án đúng là ' + correctKey;
+        // Tìm xem đáp án đúng thực sự đang được hiển thị dưới nhãn A, B, C hay D
+        const correctLabel = document.getElementById(`label-${qIndex}-${correctKey}`);
+        const currentDisplayLetter = correctLabel.querySelector('.display-letter').innerText.replace('.', '');
+        
+        feedback.innerText = '❌ Sai rồi! Đáp án đúng là ' + currentDisplayLetter;
         feedback.classList.add('text-red-600');
     }
 }
